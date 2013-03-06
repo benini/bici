@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	<title>Bici</title>
+</head>
+<body onload="Gara()">	
+<canvas id="grafico" width="1024" height="640"></canvas>
+
+
+<script type="text/javascript" charset="utf-8"> 
+
+var circonf_in_m = Math.PI * 0.50;
+
+function Bici(colore, imgsrc) {
+	this.arrivo = 0;
+	this.posizione_arrivo = new Image();
+	this.distanza = 62;
+	this.ultimo_sensore = -1;
+	this.ultimo_tempo = 0;
+	this.vel = [];
+	this.velmax = 0;
+	this.col = colore;
+
+	this.img = new Image();
+	this.img_it = 0;
+	this.img_it_end = 1;
+	this.img_loadnext = function () {
+		if (++this.img_it > this.img_it_end) this.img_it = 1;
+		this.img.src = imgsrc + this.img_it + ".jpg";
+	}
+	this.img_findnext = function () {
+		this.img_loadnext();
+		if (this.img.complete) {
+			this.img_it_end++;
+			this.img.onload = this.img_findnext()
+		} else {
+			this.img_it_end--;
+//			this.img_loadnext();
+		}
+	}
+//	this.img.onload = this.img_findnext();
+	this.img_loadnext();
+
+
+	this.sensore1 = function () {
+		if (this.arrivo == 0 && this.ultimo_sensore != 0) { this.ultimo_sensore = 0; this.addMezzoGiro_(); }
+	}
+
+	this.sensore2 = function () {
+		if (this.arrivo == 0 && this.ultimo_sensore != 1) { this.ultimo_sensore = 1; this.addMezzoGiro_(); }
+	}
+
+	this.addMezzoGiro_ = function () {
+		var tempo = (new Date).getTime();
+		if (this.ultimo_tempo) {		
+			var mezzigiri_al_secondo = 500 / (tempo - this.ultimo_tempo);
+			var km_h = circonf_in_m * mezzigiri_al_secondo * 3.6;
+			this.vel.push(km_h);
+			if (km_h > this.velmax) this.velmax = km_h;
+			if (--this.distanza == 0) this.arrivo = tempo;
+		}
+		this.ultimo_tempo = tempo;		
+		
+//		this.img_loadnext();
+	}
+}
+
+function Gara () {
+	var crono = (new Date).getTime();
+	var ctx = document.getElementById("grafico").getContext("2d");    
+	var bici = [];
+	bici[0] = new Bici("blue", "biciuno");
+	bici[1] = new Bici("green", "bicidue");
+	var posizione = 1;
+	
+	window.addEventListener('keydown', function(event) {
+		if (event.keyCode == 37 /*Key.LEFT*/) bici[0].sensore1();
+		else if (event.keyCode == 39 /*Key.RIGHT*/) bici[0].sensore2();
+		if (event.keyCode == 38 /*Key.UP*/) bici[1].sensore1();
+		else if (event.keyCode == 40 /*Key.DOWN*/) bici[1].sensore2();
+	}, false);
+
+    window.requestAnimFrame = (function(){
+        return  window.requestAnimationFrame       ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame    ||
+                window.oRequestAnimationFrame      ||
+                window.msRequestAnimationFrame     ||
+                function( callback ){
+                    window.setTimeout(callback, 1000 / 60);
+                };
+    })();
+
+
+    return draw();
+    
+	function draw () {
+		requestAnimFrame(draw);
+		
+		var tempo = (new Date).getTime();
+
+		ctx.clearRect(0, 0, 1024, 640);
+
+		for (var b = 0; b < bici.length; b++) {		
+			var vel_att = ((tempo - bici[b].ultimo_tempo < 300) && bici[b].vel.length > 0) ? bici[b].vel[bici[b].vel.length - 1] : 0;
+			
+			ctx.save();
+			ctx.translate(0,300*(b+1));
+			ctx.strokeStyle=bici[b].col;
+			
+			ctx.beginPath();
+			ctx.lineJoin = "round";
+			ctx.lineWidth = 40;
+			ctx.fillStyle = bici[b].col;
+			ctx.moveTo(10*bici[b].vel.length + 20, -250);
+			ctx.lineTo(10*bici[b].vel.length + 170, - 250);
+			ctx.lineTo(10*bici[b].vel.length + 170, -226);
+			ctx.lineTo(10*bici[b].vel.length + 20, - 226);
+			ctx.closePath();
+			ctx.stroke();
+			ctx.fill();
+						
+			ctx.font = "30px San Serif";
+			ctx.fillStyle = "white";
+			ctx.fillText(vel_att.toFixed(2) + " km/h", 10*bici[b].vel.length + 28, -230);
+			
+			ctx.font = "24px San Serif";
+			ctx.fillStyle = bici[b].col;
+			var tempo_rif = tempo;
+			if (bici[b].arrivo) {
+				tempo_rif = bici[b].arrivo;
+				if (bici[b].posizione_arrivo.src == "") bici[b].posizione_arrivo.src = "arrivo" + posizione++ + ".jpg";
+			}
+			ctx.fillText("Tempo: " + ((tempo_rif - crono)/1000).toFixed(2) + " sec", 820, -70);
+			ctx.fillText("Max: " + bici[b].velmax.toFixed(2) + " km/h", 820, -30);
+			if (bici[b].posizione_arrivo.src != "") ctx.drawImage(bici[b].posizione_arrivo, 860, - 270);
+			
+			ctx.drawImage(bici[b].img, 10*bici[b].vel.length, - 200);
+			
+			ctx.beginPath();			
+			ctx.lineWidth = 0.4;			
+			ctx.moveTo(800, 0);
+			ctx.lineTo(0, 0);			
+			ctx.scale(10, -4);	
+			for (var i = 0; i < bici[b].vel.length; i++) {
+				ctx.lineTo(i, bici[b].vel[i]);
+			}
+			ctx.stroke();			
+			ctx.restore();
+		}
+	}
+}
+
+/*
+var doctors = [
+  'rem', 
+  'rich_clark', 
+  'brucel', 
+  'jackosborne', 
+  'leads', 
+  'akamike', 
+  'boblet'];
+localStorage.doctors = JSON.stringify(doctors);
+
+// later that evening.
+var html5docs = JSON.parse(localStorage.doctors);
+alert('There be ' + html5docs.length + ' doctors in the house');
+*/
+    
+</script>
+</body>
+</html>
